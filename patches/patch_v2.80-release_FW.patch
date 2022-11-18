@@ -1,0 +1,64 @@
+diff --git a/intern/cycles/kernel/geom/geom_primitive.h b/intern/cycles/kernel/geom/geom_primitive.h
+index 2c31e5cee03..a478a24bee4 100644
+--- a/intern/cycles/kernel/geom/geom_primitive.h
++++ b/intern/cycles/kernel/geom/geom_primitive.h
+@@ -302,14 +302,21 @@ ccl_device_inline float4 primitive_motion_vector(KernelGlobals *kg, ShaderData *
+   /* camera motion, for perspective/orthographic motion.pre/post will be a
+    * world-to-raster matrix, for panorama it's world-to-camera */
+   if (kernel_data.cam.type != CAMERA_PANORAMA) {
+-    ProjectionTransform projection = kernel_data.cam.worldtoraster;
+-    motion_center = transform_perspective(&projection, center);
++    //ProjectionTransform projection = kernel_data.cam.worldtoraster;
++    //motion_center = transform_perspective(&projection, center);
+ 
+-    projection = kernel_data.cam.perspective_pre;
+-    motion_pre = transform_perspective(&projection, motion_pre);
++    //projection = kernel_data.cam.perspective_pre;
++    //motion_pre = transform_perspective(&projection, motion_pre);
++    tfm = kernel_data.cam.motion_pass_pre;
++    motion_pre = transform_point(&tfm, motion_pre);
++
++    tfm = kernel_data.cam.worldtocamera;
++    motion_center = transform_point(&tfm, center);
+ 
+-    projection = kernel_data.cam.perspective_post;
+-    motion_post = transform_perspective(&projection, motion_post);
++    //projection = kernel_data.cam.perspective_post;
++    //motion_post = transform_perspective(&projection, motion_post);
++    tfm = kernel_data.cam.motion_pass_post;
++    motion_post = transform_point(&tfm, motion_post);
+   }
+   else {
+     tfm = kernel_data.cam.worldtocamera;
+@@ -331,10 +338,10 @@ ccl_device_inline float4 primitive_motion_vector(KernelGlobals *kg, ShaderData *
+     motion_post.y *= kernel_data.cam.height;
+   }
+ 
+-  motion_pre = motion_pre - motion_center;
++  //motion_pre = motion_pre - motion_center;
+   motion_post = motion_center - motion_post;
+ 
+-  return make_float4(motion_pre.x, motion_pre.y, motion_post.x, motion_post.y);
++  return make_float4(motion_post.x, motion_post.y, motion_post.z, 0);
+ }
+ 
+ CCL_NAMESPACE_END
+diff --git a/intern/cycles/render/camera.cpp b/intern/cycles/render/camera.cpp
+index 327f166f9d8..022adf4b23b 100644
+--- a/intern/cycles/render/camera.cpp
++++ b/intern/cycles/render/camera.cpp
+@@ -371,10 +371,14 @@ void Camera::update(Scene *scene)
+       if (have_motion) {
+         kcam->perspective_pre = cameratoraster * transform_inverse(motion[0]);
+         kcam->perspective_post = cameratoraster * transform_inverse(motion[motion.size() - 1]);
++        kcam->motion_pass_pre = transform_inverse(motion[0]);
++        kcam->motion_pass_post = transform_inverse(motion[motion.size() - 1]);
+       }
+       else {
+         kcam->perspective_pre = worldtoraster;
+         kcam->perspective_post = worldtoraster;
++        kcam->motion_pass_pre = kcam->worldtocamera;
++        kcam->motion_pass_post = kcam->worldtocamera;
+       }
+     }
+   }
